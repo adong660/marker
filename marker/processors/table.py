@@ -13,7 +13,7 @@ from marker.processors.table_recon import (
 from marker.schema import BlockTypes
 from marker.schema.document import Document
 from marker.schema.labels import block_type_to_surya_label
-from marker.util import matrix_intersection_area
+from marker.util import HTML_FRAGMENT_ALLOWED_TAGS, escape_text_outside_tags, matrix_intersection_area
 from marker.logger import get_logger
 
 logger = get_logger()
@@ -176,6 +176,9 @@ class TableProcessor(BaseProcessor):
     def clean_table_html(self, html: str | None) -> str:
         if not html:
             return ""
+        # Sanitize stray "<" at the model-HTML ingest boundary before any parse
+        # (e.g. "<LOQ" would be eaten as a fake tag below).
+        html = escape_text_outside_tags(html, HTML_FRAGMENT_ALLOWED_TAGS)
         if "<table" not in html:
             return ""
         if _detect_repeat_loop(html):
@@ -189,7 +192,11 @@ class TableProcessor(BaseProcessor):
         return str(soup).strip()
 
     def clean_form_html(self, html: str | None) -> str:
-        if not html or _detect_repeat_loop(html):
+        if not html:
+            return ""
+        # Sanitize stray "<" at the model-HTML ingest boundary before any parse.
+        html = escape_text_outside_tags(html, HTML_FRAGMENT_ALLOWED_TAGS)
+        if _detect_repeat_loop(html):
             return ""
         # Balance any truncated tags; no <table> requirement for forms.
         return str(BeautifulSoup(html, "html.parser")).strip()

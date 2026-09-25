@@ -70,6 +70,77 @@ def store_math_html(html_str: str) -> str:
     return escape_math_payload(unescape_math_payload(html_str))
 
 
+# Tags preserved verbatim by escape_text_outside_tags for rich HTML fragments
+# (table/form ingest path). "math" islands are handled by store_math_html, so
+# "math" is deliberately not listed here.
+HTML_FRAGMENT_ALLOWED_TAGS = frozenset(
+    {
+        "table",
+        "thead",
+        "tbody",
+        "tfoot",
+        "tr",
+        "td",
+        "th",
+        "caption",
+        "col",
+        "colgroup",
+        "br",
+        "i",
+        "b",
+        "span",
+        "em",
+        "strong",
+        "sup",
+        "sub",
+        "mark",
+        "u",
+        "s",
+        "code",
+    }
+)
+
+
+def _fragment_token_re(allowed_tags: set) -> re.Pattern:
+    """Allowed tag (verbatim) | whole <math> island (verbatim) token matcher."""
+    names = sorted(allowed_tags)
+    tag_pat = (
+        r"</?(?:"
+        + "|".join(re.escape(n) for n in names)
+        + r")(?![A-Za-z0-9])(?:[^<>\"']+|\"[^\"]*\"|'[^']*')*/?>"
+    )
+    return re.compile(MATH_TAG_RE.pattern + "|" + tag_pat, re.DOTALL)
+
+
+def escape_text_outside_tags(html_str: str, allowed_tags) -> str:
+    """Sanitize an external/model/LLM HTML fragment at an ingest boundary.
+
+    Allowed tags and whole <math> islands (canonicalized via store_math_html)
+    pass through verbatim; every other raw "<" (stray text like "<LOQ", "a < b"
+    outside math, or malformed tag-like junk) is escaped so an HTML parser
+    cannot eat it as a fake tag. Text runs are canonicalized exactly like math
+    payloads (unescape-then-escape), so pre-existing entities are not
+    double-escaped and the transform is idempotent.
+
+    Single-application boundary transform (apply at HTML ingest, never at
+    HTML-fragment joins such as tablecell text_lines).
+    """
+    sanitized = store_math_html(html_str)
+    token_re = _fragment_token_re(set(allowed_tags))
+    out: List[str] = []
+    last = 0
+    for m in token_re.finditer(sanitized):
+        if m.start() > last:
+            out.append(
+                html.escape(html.unescape(sanitized[last : m.start()]), quote=False)
+            )
+        out.append(m.group(0))
+        last = m.end()
+    if last < len(sanitized):
+        out.append(html.escape(html.unescape(sanitized[last:]), quote=False))
+    return "".join(out)
+
+
 def verify_config_keys(obj):
     annotations = inspect.get_annotations(obj.__class__)
 

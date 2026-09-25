@@ -11,6 +11,7 @@ from marker.schema.blocks import Block, TableCell, Table
 from marker.schema.document import Document
 from marker.schema.groups.page import PageGroup
 from marker.schema.polygon import PolygonBox
+from marker.util import HTML_FRAGMENT_ALLOWED_TAGS, escape_text_outside_tags
 
 logger = get_logger()
 
@@ -207,6 +208,11 @@ score: 5
             corrected_html = (
                 corrected_html.strip().lstrip("```html").rstrip("```").strip()
             )
+            # Sanitize stray "<" at the LLM-HTML ingest boundary: it is parsed by
+            # parse_html_table below and written back to block.html.
+            corrected_html = escape_text_outside_tags(
+                corrected_html, HTML_FRAGMENT_ALLOWED_TAGS
+            )
             if not corrected_html.endswith("</table>"):
                 block.update_metadata(llm_error_count=1)
                 return
@@ -247,6 +253,11 @@ score: 5
             return
 
         corrected_html = corrected_html.strip().lstrip("```html").rstrip("```").strip()
+        # Sanitize stray "<" at the LLM-HTML ingest boundary: it is parsed by
+        # parse_html_table below and re-fed/written back as block html.
+        corrected_html = escape_text_outside_tags(
+            corrected_html, HTML_FRAGMENT_ALLOWED_TAGS
+        )
 
         # Re-iterate if low score
         total_iterations += 1

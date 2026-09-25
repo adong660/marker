@@ -1,5 +1,6 @@
 import os
 import tempfile
+from html import escape
 
 from marker.providers.pdf import PdfProvider
 
@@ -106,11 +107,11 @@ class SpreadSheetProvider(PdfProvider):
 
                     # Add merged cell with rowspan/colspan
                     value = cell.value if cell.value is not None else ""
-                    html += f'<td rowspan="{merge_info["rowspan"]}" colspan="{merge_info["colspan"]}">{value}'
+                    html += f'<td rowspan="{merge_info["rowspan"]}" colspan="{merge_info["colspan"]}">{escape(str(value), quote=False)}'
                 else:
                     # Regular cell
                     value = cell.value if cell.value is not None else ""
-                    html += f"<td>{value}"
+                    html += f"<td>{escape(str(value), quote=False)}"
 
                 html += "</td>"
             html += "</tr>"

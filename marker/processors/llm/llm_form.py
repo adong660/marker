@@ -4,6 +4,7 @@ from pydantic import BaseModel
 
 from marker.output import json_to_html
 from marker.processors.llm import PromptData, BaseLLMSimpleBlockProcessor, BlockData
+from marker.util import HTML_FRAGMENT_ALLOWED_TAGS, escape_text_outside_tags
 
 from marker.schema import BlockTypes
 from marker.schema.document import Document
@@ -114,7 +115,9 @@ Comparison: The html representation has the labels in the first row and the valu
             return
 
         corrected_html = corrected_html.strip().lstrip("```html").rstrip("```").strip()
-        block.html = corrected_html
+        # Sanitize stray "<" at the LLM-HTML ingest boundary before it becomes
+        # block.html (math islands keep the store_math_html semantics).
+        block.html = escape_text_outside_tags(corrected_html, HTML_FRAGMENT_ALLOWED_TAGS)
 
 
 class FormSchema(BaseModel):
