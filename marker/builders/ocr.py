@@ -18,6 +18,7 @@ from marker.schema.labels import (
 )
 from marker.schema.polygon import PolygonBox
 from marker.schema.registry import get_block_class
+from marker.util import store_math_html
 
 logger = get_logger()
 
@@ -292,6 +293,11 @@ class OcrBuilder(BaseBuilder):
         if _detect_repeat_loop(html):
             logger.warning("Dropping OCR block output due to repetition loop")
             return ""
+
+        # Canonicalize math payloads to escaped form BEFORE the parse below:
+        # raw "<" in latex (e.g. y_{<l}) would be eaten as a fake tag here,
+        # truncating the formula in the stored block.html.
+        html = store_math_html(html)
 
         soup = BeautifulSoup(html, "html.parser")
         for tag in soup.find_all(True):

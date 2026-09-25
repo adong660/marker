@@ -8,6 +8,7 @@ from marker.schema import BlockTypes
 from marker.schema.blocks import BlockId
 from marker.schema.document import Document
 from marker.schema.groups import PageGroup
+from marker.util import store_math_html
 from pydantic import BaseModel
 from tqdm import tqdm
 
@@ -260,7 +261,7 @@ User Prompt
                     continue
 
                 if hasattr(block, "html"):
-                    block.html = block_data["html"]
+                    block.html = store_math_html(block_data["html"])
             except Exception as e:
                 logger.debug(f"Error parsing block ID {block_data['id']}: {e}")
                 continue

@@ -1,3 +1,4 @@
+import html
 import inspect
 import os
 from importlib import import_module
@@ -27,6 +28,46 @@ def classes_to_strings(items: List[type]) -> List[str]:
             raise ValueError(f"Item {item} is not a class")
 
     return [f"{item.__module__}.{item.__name__}" for item in items]
+
+
+# Matches one <math ...>payload</math> element. The payload is latex, not HTML:
+# it can contain bare "<" (e.g. y_{<l}) which any HTML parser would eat as a
+# fake tag, truncating the formula.
+MATH_TAG_RE = re.compile(r"(<math[^>]*>)(.*?)(</math>)", re.DOTALL)
+
+
+def escape_math_payload(html_str: str) -> str:
+    """Escape the latex payload inside <math>...</math> with html.escape(quote=False).
+
+    Tags and everything outside <math> are untouched. This is a SINGLE
+    application at a defined boundary — it is NOT idempotent: applying it twice
+    yields &amp;lt;. Use store_math_html() at storage sites.
+    """
+    return MATH_TAG_RE.sub(
+        lambda m: m.group(1) + html.escape(m.group(2), quote=False) + m.group(3),
+        html_str,
+    )
+
+
+def unescape_math_payload(html_str: str) -> str:
+    """Exact inverse of escape_math_payload: html.unescape the <math> payload only.
+
+    Also single-application. Used at the JSON extraction boundary to restore the
+    raw-latex-inside-<math> contract (see data/examples/json/switch_trans.json).
+    """
+    return MATH_TAG_RE.sub(
+        lambda m: m.group(1) + html.unescape(m.group(2)) + m.group(3),
+        html_str,
+    )
+
+
+def store_math_html(html_str: str) -> str:
+    """Storage boundary for math-carrying html: canonicalize each <math> payload
+    to escaped form (unescape-then-escape), so entity-escaped and raw inputs
+    store identically. Idempotent on the canonical form, which structurally
+    prevents double-escaping when every assignment site routes through here.
+    """
+    return escape_math_payload(unescape_math_payload(html_str))
 
 
 def verify_config_keys(obj):

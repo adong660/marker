@@ -11,7 +11,7 @@ from marker.schema import BlockTypes
 from marker.schema.blocks.base import BlockId, BlockOutput
 from marker.schema.document import Document
 from marker.settings import settings
-from marker.util import assign_config
+from marker.util import assign_config, unescape_math_payload
 
 # Placeholder emitted by Block.assemble_html for each child block.
 CONTENT_REF_RE = re.compile(r"<content-ref src='([^']*)'></content-ref>")
@@ -166,4 +166,9 @@ class BaseRenderer:
         # match the historical output. The splice above already inlined the
         # whole sub-tree as a string, so this is a single parse per block rather
         # than the previous per-node BeautifulSoup re-parse.
-        return str(BeautifulSoup(html, "html.parser")), images
+        normalized = str(BeautifulSoup(html, "html.parser"))
+        # JSON carries RAW latex inside <math> (see data/examples/json/switch_trans.json):
+        # undo the generation-time payload escaping here, at the extraction
+        # boundary. Markdown extracts via .text (already decodes); HTML output
+        # keeps the entities.
+        return unescape_math_payload(normalized), images

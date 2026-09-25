@@ -13,6 +13,7 @@ from marker.schema import BlockTypes
 from marker.schema.blocks import Block, BlockId
 from marker.schema.document import Document
 from marker.schema.groups import PageGroup
+from marker.util import store_math_html
 from marker.services import BaseService
 from marker.util import assign_config
 from marker.logger import get_logger
@@ -123,7 +124,7 @@ class BaseLLMProcessor(BaseProcessor):
                     continue
 
                 if hasattr(block, "html"):
-                    block.html = block_data["html"]
+                    block.html = store_math_html(block_data["html"])
             except Exception as e:
                 logger.debug(f"Error parsing block ID {block_data['id']}: {e}")
                 continue

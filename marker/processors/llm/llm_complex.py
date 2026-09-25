@@ -7,6 +7,7 @@ from marker.processors.llm import PromptData, BaseLLMSimpleBlockProcessor
 
 from marker.schema import BlockTypes
 from marker.schema.document import Document
+from marker.util import store_math_html
 
 
 class LLMComplexRegionProcessor(BaseLLMSimpleBlockProcessor):
@@ -87,7 +88,7 @@ Output:
 
         # Convert LLM markdown to html
         corrected_markdown = corrected_markdown.strip().lstrip("```markdown").rstrip("```").strip()
-        block.html = markdown2.markdown(corrected_markdown, extras=["tables"])
+        block.html = store_math_html(markdown2.markdown(corrected_markdown, extras=["tables"]))
 
 class ComplexSchema(BaseModel):
     corrected_markdown: str

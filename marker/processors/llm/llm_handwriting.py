@@ -4,6 +4,7 @@ from marker.processors.llm import PromptData, BaseLLMSimpleBlockProcessor, Block
 
 from marker.schema import BlockTypes
 from marker.schema.document import Document
+from marker.util import store_math_html
 
 from typing import Annotated, List
 
@@ -79,7 +80,7 @@ Formatting should be in markdown, with the following rules:
             return
 
         markdown = markdown.strip().lstrip("```markdown").rstrip("```").strip()
-        block.html = markdown2.markdown(markdown, extras=["tables"])
+        block.html = store_math_html(markdown2.markdown(markdown, extras=["tables"]))
 
 class HandwritingSchema(BaseModel):
     markdown: str

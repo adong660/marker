@@ -12,6 +12,7 @@ from marker.renderers.markdown import MarkdownOutput
 from marker.renderers.ocr_json import OCRJSONOutput
 from marker.schema.blocks import BlockOutput
 from marker.settings import settings
+from marker.util import escape_math_payload
 
 
 def unwrap_outer_tag(html: str):
@@ -41,10 +42,14 @@ def json_to_html(block: JSONBlockOutput | BlockOutput):
     # Resolves <content-ref> placeholders by string substitution (fast, no
     # per-node BeautifulSoup re-parse; this runs per block inside the LLM
     # processor loops), then normalizes once. Output matches the prior version.
+    # JSON html holds RAW latex inside <math>, so re-escape the math payload
+    # before any re-parse here or the fake-tag truncation bug is re-triggered.
     children = getattr(block, "children", None)
     if not children:
-        return block.html
-    return str(BeautifulSoup(_splice_json_html(block), "html.parser"))
+        return escape_math_payload(block.html)
+    return str(
+        BeautifulSoup(escape_math_payload(_splice_json_html(block)), "html.parser")
+    )
 
 
 def output_exists(output_dir: str, fname_base: str):

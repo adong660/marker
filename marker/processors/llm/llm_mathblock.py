@@ -6,6 +6,7 @@ from tqdm import tqdm
 
 from marker.output import json_to_html, unwrap_outer_tag
 from marker.processors.llm import BaseLLMComplexBlockProcessor
+from marker.util import store_math_html
 
 from marker.schema import BlockTypes
 from marker.schema.blocks import Block, InlineMath
@@ -190,7 +191,7 @@ Adversarial training <i>(AT)</i> <a href='#page-9-1'>[23]</a>, which aims to min
             block.update_metadata(llm_error_count=1)
             return
 
-        block.html = corrected_html
+        block.html = store_math_html(corrected_html)
 
 
 class LLMTextSchema(BaseModel):

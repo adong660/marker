@@ -1,7 +1,7 @@
+import html
 import re
 from typing import Annotated, Tuple
 
-from bs4 import BeautifulSoup
 from ftfy import fix_text, TextFixerConfig
 from surya.layout.schema import LayoutBox, LayoutResult
 from surya.recognition import RecognitionPredictor
@@ -11,6 +11,7 @@ from marker.processors import BaseProcessor
 from marker.schema import BlockTypes
 from marker.schema.document import Document
 from marker.schema.labels import block_type_to_surya_label
+from marker.util import MATH_TAG_RE, store_math_html
 
 logger = get_logger()
 
@@ -155,13 +156,15 @@ class EquationProcessor(BaseProcessor):
                     continue
                 block = document.get_block(block_id)
                 if block.block_type == BlockTypes.Equation:
-                    block.html = self.fix_latex(block_result.html)
+                    # fix_latex already returns escaped html; store_math_html is
+                    # idempotent on the canonical form, so this cannot double-escape.
+                    block.html = store_math_html(self.fix_latex(block_result.html))
                 elif block.block_type == BlockTypes.ChemicalBlock:
-                    block.html = block_result.html.strip()
+                    block.html = store_math_html(block_result.html.strip())
                 else:
                     # Inline-math text block: html carries inline <math>; drop the
                     # pdftext line/span structure so the html leaf is rendered.
-                    block.html = block_result.html.strip()
+                    block.html = store_math_html(block_result.html.strip())
                     block.structure = []
 
     # Math-specific font-name hints (TeX math italics/symbols, AMS, STIX, etc.).
@@ -231,31 +234,28 @@ class EquationProcessor(BaseProcessor):
 
     def fix_latex(self, math_html: str):
         math_html = math_html.strip()
-        soup = BeautifulSoup(math_html, "html.parser")
-        opening_math_tag = soup.find("math")
-
-        # No math block found
-        if not opening_math_tag:
+        # Extract the <math> payload BEFORE any parser sees it: raw "<" in latex
+        # (e.g. y_{<l}) would be eaten as a fake tag by a BeautifulSoup parse,
+        # truncating the formula. The shell (e.g. the model's <p> wrapper) is
+        # dropped; Equation.assemble_html adds its own paragraph wrapper.
+        match = MATH_TAG_RE.search(math_html)
+        if not match:
+            # No math block found
             return ""
+        payload = match.group(2)
 
-        # The model wraps its output in <p>; Equation.assemble_html adds its own
-        # paragraph wrapper, so unwrap here to avoid nested <p><p>.
-        for p in soup.find_all("p"):
-            p.unwrap()
+        # Sometimes model outputs newlines at the beginning/end of tags, and
+        # stray <br> (historical cleanups, now regex-based on the raw payload).
+        payload = re.sub(r"^\\n(?![a-zA-Z])", "", payload)
+        payload = re.sub(r"\\n$", "", payload)
+        payload = re.sub(r"<br>", "", payload)
 
-        # Force block format
-        opening_math_tag.attrs["display"] = "block"
-        fixed_math_html = str(soup)
+        # ftfy canonicalizes escaped-or-raw model output (surya's training
+        # contract is entity-escaped latex) to raw latex. This is the normalizer
+        # step, not the last one: the payload is escaped again below.
+        fixed_payload = fix_text(payload, config=TextFixerConfig(unescape_html=True))
 
-        # Sometimes model outputs newlines at the beginning/end of tags
-        fixed_math_html = re.sub(
-            r"^<math display=\"block\">\\n(?![a-zA-Z])",
-            '<math display="block">',
-            fixed_math_html,
-        )
-        fixed_math_html = re.sub(r"\\n</math>$", "</math>", fixed_math_html)
-        fixed_math_html = re.sub(r"<br>", "", fixed_math_html)
-        fixed_math_html = fix_text(
-            fixed_math_html, config=TextFixerConfig(unescape_html=True)
-        )
-        return fixed_math_html
+        # Force block format, escaping the payload at generation time (house
+        # convention, cf. schema/text/span.py and schema/blocks/code.py) so no
+        # later HTML parse can truncate the latex.
+        return f'<math display="block">{html.escape(fixed_payload, quote=False)}</math>'

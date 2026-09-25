@@ -3,6 +3,7 @@ from pydantic import BaseModel
 from marker.processors.llm import BaseLLMSimpleBlockProcessor, PromptData, BlockData
 from marker.schema import BlockTypes
 from marker.schema.document import Document
+from marker.util import store_math_html
 
 from typing import Annotated, List
 
@@ -135,7 +136,7 @@ analysis: The equations are not formatted as LaTeX, or enclosed in math tags.
             block.update_metadata(llm_error_count=1)
             return
 
-        block.html = html_equation
+        block.html = store_math_html(html_equation)
 
 
 class EquationSchema(BaseModel):
